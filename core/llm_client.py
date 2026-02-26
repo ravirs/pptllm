@@ -19,57 +19,54 @@ You MUST only use the 'allowed_layout_ids' provided to you.
 You MUST only fill fields that exist for the chosen layout.
 """
 
+from core.multi_agent import app, AgentState
+
 def generate_deck(profile: TemplateProfile, prompt: str, slide_count: str, tone: str) -> DeckSpec:
-    # Build prompt context
-    layouts_summary = []
-    for layout in profile.layouts:
-        if layout.layout_id in profile.allowed_layout_ids:
-            allowed_keys = [p.key for p in layout.placeholders]
-            layouts_summary.append(f"- Layout ID: {layout.layout_id}, Name: '{layout.layout_name}', Allowed Fields: {allowed_keys}")
+    initial_state = {
+        "profile": profile,
+        "prompt": prompt,
+        "slide_count": slide_count,
+        "tone": tone,
+        "layouts_context": "",
+        "planned_outline": "",
+        "draft_deck_spec": None,
+        "review_feedback": "",
+        "review_passed": False,
+        "iterations": 0
+    }
     
-    context = (
-        f"Template Layouts Context:\n" + "\n".join(layouts_summary) + "\n\n"
-        f"User Instructions:\n"
-        f"Topic/Outline: {prompt}\n"
-        f"Desired Slide Count: {slide_count}\n"
-        f"Tone: {tone}\n\n"
-        f"Generate the presentation data adhering to the DeckSpec schema."
-    )
+    # Run the langgraph app
+    final_state = app.invoke(initial_state)
     
-    return _call_llm_with_retries(context)
+    if final_state["draft_deck_spec"] is None:
+        raise ValueError(f"Agent failed to generate valid deck: {final_state.get('review_feedback')}")
+        
+    return final_state["draft_deck_spec"]
 
 def edit_deck(profile: TemplateProfile, current_deck: DeckSpec, instruction: str) -> DeckSpec:
-    layouts_summary = []
-    for layout in profile.layouts:
-        if layout.layout_id in profile.allowed_layout_ids:
-            allowed_keys = [p.key for p in layout.placeholders]
-            layouts_summary.append(f"- Layout ID: {layout.layout_id}, Name: '{layout.layout_name}', Allowed Fields: {allowed_keys}")
-    
-    context = (
-        f"Template Layouts Context:\n" + "\n".join(layouts_summary) + "\n\n"
-        f"Current DeckSpec JSON:\n{current_deck.model_dump_json()}\n\n"
-        f"User Edit Instruction: {instruction}\n\n"
-        f"Apply the edits and return the FULL UPDATED DeckSpec JSON."
+    # For MVP editing, we can route a specialized edit instruction through the same graph
+    # We prefix the prompt with current state.
+    edit_prompt = (
+        f"CURRENT DECK STATE:\n{current_deck.model_dump_json()}\n\n"
+        f"USER EDIT INSTRUCTION:\n{instruction}\n\n"
+        f"Please redesign the deck narrative and structure applying these changes."
     )
-    return _call_llm_with_retries(context)
-
-def _call_llm_with_retries(prompt_text: str, max_retries: int = 2) -> DeckSpec:
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": prompt_text}
-    ]
     
-    for attempt in range(max_retries + 1):
-        try:
-            response = client.beta.chat.completions.parse(
-                model="gpt-4o-2024-08-06",
-                messages=messages,
-                response_format=DeckSpec
-            )
-            return response.choices[0].message.parsed
-        except Exception as e:
-            if attempt == max_retries:
-                raise ValueError(f"Failed to generate valid DeckSpec after {max_retries} retries: {str(e)}")
-            # Append error to messages to context for retry
-            messages.append({"role": "assistant", "content": "The generated JSON was invalid."})
-            messages.append({"role": "user", "content": f"The JSON generation failed with error: {str(e)}. Please fix the JSON and match the schema exactly."})
+    initial_state = {
+        "profile": profile,
+        "prompt": edit_prompt,
+        "slide_count": str(len(current_deck.slides)),
+        "tone": "Keep current tone",
+        "layouts_context": "",
+        "planned_outline": "",
+        "draft_deck_spec": None,
+        "review_feedback": "",
+        "review_passed": False,
+        "iterations": 0
+    }
+    
+    final_state = app.invoke(initial_state)
+    if final_state["draft_deck_spec"] is None:
+        raise ValueError(f"Agent failed to edit valid deck: {final_state.get('review_feedback')}")
+        
+    return final_state["draft_deck_spec"]
