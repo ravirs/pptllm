@@ -96,7 +96,8 @@ if st.session_state.template_profile:
                         profile=st.session_state.template_profile,
                         prompt=prompt,
                         slide_count=str(slide_count),
-                        tone=tone
+                        tone=tone,
+                        template_path=st.session_state.template_path
                     )
                     st.session_state.deck_history = [deck_spec]
                     st.session_state.current_deck_idx = 0
@@ -148,7 +149,7 @@ if len(st.session_state.deck_history) > 0:
             if edit_instruction.strip() and os.environ.get("OPENAI_API_KEY"):
                 with st.spinner("Applying edits..."):
                     try:
-                        new_deck = edit_deck(st.session_state.template_profile, current_deck, edit_instruction)
+                        new_deck = edit_deck(st.session_state.template_profile, current_deck, edit_instruction, st.session_state.template_path)
                         # Keep max 5 history states
                         st.session_state.deck_history = st.session_state.deck_history[:st.session_state.current_deck_idx + 1]
                         st.session_state.deck_history.append(new_deck)

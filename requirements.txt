@@ -3,3 +3,6 @@ python-pptx
 pydantic
 openai
 python-dotenv
+langgraph
+langchain-openai
+pdf2image

@@ -21,12 +21,13 @@ You MUST only fill fields that exist for the chosen layout.
 
 from core.multi_agent import app, AgentState
 
-def generate_deck(profile: TemplateProfile, prompt: str, slide_count: str, tone: str) -> DeckSpec:
+def generate_deck(profile: TemplateProfile, prompt: str, slide_count: str, tone: str, template_path: str) -> DeckSpec:
     initial_state = {
         "profile": profile,
         "prompt": prompt,
         "slide_count": slide_count,
         "tone": tone,
+        "template_path": template_path,
         "layouts_context": "",
         "planned_outline": "",
         "draft_deck_spec": None,
@@ -43,7 +44,7 @@ def generate_deck(profile: TemplateProfile, prompt: str, slide_count: str, tone:
         
     return final_state["draft_deck_spec"]
 
-def edit_deck(profile: TemplateProfile, current_deck: DeckSpec, instruction: str) -> DeckSpec:
+def edit_deck(profile: TemplateProfile, current_deck: DeckSpec, instruction: str, template_path: str) -> DeckSpec:
     # For MVP editing, we can route a specialized edit instruction through the same graph
     # We prefix the prompt with current state.
     edit_prompt = (
@@ -57,6 +58,7 @@ def edit_deck(profile: TemplateProfile, current_deck: DeckSpec, instruction: str
         "prompt": edit_prompt,
         "slide_count": str(len(current_deck.slides)),
         "tone": "Keep current tone",
+        "template_path": template_path,
         "layouts_context": "",
         "planned_outline": "",
         "draft_deck_spec": None,
